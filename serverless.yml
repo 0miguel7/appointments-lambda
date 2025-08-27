@@ -1,0 +1,231 @@
+service: appointment
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  stage: dev
+  environment:
+    DYNAMODB_TABLE_NAME: Appointments
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:292222340235:appointments-topic
+    EVENTBRIDGE_BUS_NAME: ${self:service}-${self:provider.stage}-bus
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:GetItem
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - arn:aws:dynamodb:us-east-1:${aws:accountId}:table/Appointments
+        - arn:aws:dynamodb:us-east-1:${aws:accountId}:table/Appointments/index/*
+
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource:
+        - arn:aws:sns:us-east-1:${aws:accountId}:appointments-topic
+
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:GetQueueAttributes
+      Resource:
+        - arn:aws:sqs:us-east-1:${aws:accountId}:SQSCompletion
+    - Effect: Allow
+      Action:
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:GetQueueAttributes
+      Resource:
+        - arn:aws:sqs:us-east-1:${aws:accountId}:${self:service}-${self:provider.stage}-SQS-PE
+        - arn:aws:sqs:us-east-1:${aws:accountId}:${self:service}-${self:provider.stage}-SQS-CL
+
+functions:
+  createAppointment:
+    handler: src/handlers/appointment.createAppointment
+    events:
+      - http:
+          path: /appointments
+          method: post
+          cors: true
+
+  getAppointments:
+    handler: src/handlers/appointment.getAppointmentsByInsured
+    events:
+      - http:
+          path: /appointments/{insuredId}
+          method: get
+          cors: true
+
+  processCompletion:
+    handler: src/handlers/appointment.processCompletionNotification
+    events:
+      - sqs:
+          arn: !GetAtt SQSCompletion.Arn
+
+  processAppointmentPE:
+    handler: src/handlers/appointment-pe.processAppointment
+    timeout: 30
+    events:
+      - sqs:
+          arn: !GetAtt SQSPeru.Arn
+
+  processAppointmentCL:
+    handler: src/handlers/appointment-cl.processAppointment
+    timeout: 30
+    events:
+      - sqs:
+          arn: !GetAtt SQSChile.Arn
+
+resources:
+  Resources:
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Appointments
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: insuredId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: insuredId-index
+            KeySchema:
+              - AttributeName: insuredId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    AppointmentTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: appointments-topic
+
+    SQSPeru:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-SQS-PE
+
+    SQSChile:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-SQS-CL
+
+    SQSCompletion:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-completion
+
+    SNSSubscriptionPE:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        TopicArn: !Ref AppointmentTopic
+        Endpoint: !GetAtt SQSPeru.Arn
+        FilterPolicy:
+          country:
+            - "PE"
+
+    SNSSubscriptionCL:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: sqs
+        TopicArn: !Ref AppointmentTopic
+        Endpoint: !GetAtt SQSChile.Arn
+        FilterPolicy:
+          country:
+            - "CL"
+
+    EventBridge:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: ${self:service}-${self:provider.stage}-bus
+        Tags:
+          - Key: Environment
+            Value: ${self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    AppointmentProcessedRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: ${self:service}-${self:provider.stage}-appointment-processed-rule
+        EventBusName: !Ref EventBridge
+        EventPattern:
+          source:
+            - "medical-appointments"
+          detail-type:
+            - "Appointment Processed"
+        Targets:
+          - Arn: !GetAtt SQSCompletion.Arn
+            Id: "ProcessCompletionLambdaTarget"
+            DeadLetterConfig:
+              Arn: !GetAtt SQSCompletionDLQ.Arn
+
+    SQSCompletionDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${self:provider.stage}-completion-dlq
+
+    SQSPolicyPeru:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSPeru
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: SQS:SendMessage
+              Resource: !GetAtt SQSPeru.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentTopic
+
+    SQSPolicyChile:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSChile
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: sns.amazonaws.com
+              Action: SQS:SendMessage
+              Resource: !GetAtt SQSChile.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentTopic
+
+    SQSCompletionPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSCompletion
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt SQSCompletion.Arn
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline

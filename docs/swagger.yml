@@ -1,0 +1,149 @@
+openapi: 3.0.0
+info:
+  title: Medical Appointment Scheduling API
+  description: API for scheduling medical appointments for insured patients
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@medical-appointments.com
+
+servers:
+  - url: https://api.medical-appointments.com/dev
+    description: Development server
+  - url: https://api.medical-appointments.com/prod
+    description: Production server
+
+paths:
+  /appointments:
+    post:
+      summary: Create a new appointment
+      description: Schedule a medical appointment for an insured patient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentRequest"
+      responses:
+        "200":
+          description: Appointment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentResponse"
+        "400":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+
+  /appointments/{insuredId}:
+    get:
+      summary: Get appointments by insured ID
+      description: Retrieve all appointments for a specific insured patient
+      parameters:
+        - name: insuredId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{5}$'
+          description: 5-digit insured patient ID
+      responses:
+        "200":
+          description: Appointments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Appointment"
+        "400":
+          description: Invalid insured ID
+        "500":
+          description: Internal server error
+
+components:
+  schemas:
+    AppointmentRequest:
+      type: object
+      required:
+        - insuredId
+        - scheduleId
+        - countryISO
+      properties:
+        insuredId:
+          type: string
+          pattern: '^\d{5}$'
+          description: 5-digit insured patient ID
+          example: "12345"
+        scheduleId:
+          type: integer
+          description: Schedule slot identifier
+          example: 100
+        countryISO:
+          type: string
+          enum: [PE, CL]
+          description: Country code
+          example: "PE"
+
+    AppointmentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Appointment scheduling is in process"
+            appointmentId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              example: "pending"
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        insuredId:
+          type: string
+          pattern: '^\d{5}$'
+        scheduleId:
+          type: integer
+        countryISO:
+          type: string
+          enum: [PE, CL]
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        errors:
+          type: array
+          items:
+            type: string

@@ -1,0 +1,33 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Serverless Framework build artifacts
+.serverless/
+.cloudformation/
+.sls-*
+
+# Local environment
+.env
+.env.*
+*.local
+
+# AWS credentials
+.aws/
+.aws-sam/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
