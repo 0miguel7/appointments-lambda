@@ -8,10 +8,8 @@ info:
     email: dev@medical-appointments.com
 
 servers:
-  - url: https://api.medical-appointments.com/dev
+  - url: https://k3jcg03m39.execute-api.us-east-1.amazonaws.com/dev
     description: Development server
-  - url: https://api.medical-appointments.com/prod
-    description: Production server
 
 paths:
   /appointments:
