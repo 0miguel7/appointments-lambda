@@ -24,6 +24,8 @@ export class EventBridgeService {
       ],
     };
 
-    await this.eventBridge.send(new PutEventsCommand(params));
+    logger.info(params, "params");
+    const response = await this.eventBridge.send(new PutEventsCommand(params));
+    logger.info(response, "eventbridge response");
   }
 }

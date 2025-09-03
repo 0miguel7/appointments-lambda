@@ -6,17 +6,17 @@ const appointmentHandler = new CountryAppointmentHandler("CL");
 const logger = pino();
 
 export const processAppointment = async (event: SQSEvent) => {
-  logger.info(`Processing SQS_CL messages, ${{ recordCount: event.Records.length }}`);
+  logger.info({ recordCount: event.Records.length }, "Processing SQS_CL messages");
 
   for (const record of event.Records) {
     try {
-      logger.info(`Processing appointment record, ${record.body.toString()}`);
+      logger.info({ body: record.body }, "Processing appointment record");
 
       await appointmentHandler.processAppointment(record);
 
-      logger.info(`Successfully processed appointment record, ${record.body.toString()}`);
+      logger.info("Successfully processed appointment record");
     } catch (error: any) {
-      logger.error(`Error processing appointment record, ${{ messageId: record.messageId, error: error.message }}`);
+      logger.error({ messageId: record.messageId, error: error.message }, "Error processing appointment record");
     }
   }
 };

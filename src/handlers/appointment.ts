@@ -9,7 +9,7 @@ const logger = pino();
 
 export const createAppointment: APIGatewayProxyHandler = async (event) => {
   try {
-    logger.info(`Creating appointment ${JSON.stringify(event.body)}`);
+    logger.info(event.body, "Creating appointment");
 
     const body = JSON.parse(event.body || "{}");
     const validation = Validator.validateAppointmentRequest(body);
@@ -26,7 +26,7 @@ export const createAppointment: APIGatewayProxyHandler = async (event) => {
       status: appointment.status,
     });
   } catch (error) {
-    logger.error(`Error creating appointment: ${error}`);
+    logger.error(error, "Error creating appointment");
     return ResponseUtil.internalServerError("Failed to process appointment");
   }
 };
@@ -43,7 +43,7 @@ export const getAppointmentsByInsured: APIGatewayProxyHandler = async (event) =>
 
     return ResponseUtil.success(appointments);
   } catch (error) {
-    logger.error(`Error fetching appointments: ${error}`);
+    logger.error(error, "Error fetching appointments");
     return ResponseUtil.internalServerError("Failed to fetch appointments");
   }
 };
@@ -52,14 +52,14 @@ export const processCompletionNotification = async (event: any) => {
   try {
     for (const record of event.Records) {
       const body = JSON.parse(record.body);
-      logger.info("Processing completion notification", body);
-      await appointmentService.completeAppointment(body.appointmentId);
-      logger.info(`Appointment completed ${body.appointmentId}`);
+      logger.info(body.detail, "detail");
+      await appointmentService.completeAppointment(body.detail.appointmentId);
+      logger.info(body.appointmentId, "Appointment completed");
 
       // TODO: send confirmation email
     }
   } catch (error) {
-    logger.error(`Error processing completion notification: ${error}`);
+    logger.error(error, "Error processing completion notification");
     throw error;
   }
 };

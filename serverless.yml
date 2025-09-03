@@ -46,6 +46,11 @@ provider:
       Resource:
         - arn:aws:sqs:us-east-1:${aws:accountId}:${self:service}-${self:provider.stage}-SQS-PE
         - arn:aws:sqs:us-east-1:${aws:accountId}:${self:service}-${self:provider.stage}-SQS-CL
+    - Effect: Allow
+      Action:
+        - events:PutEvents
+      Resource:
+        - arn:aws:events:us-east-1:292222340235:event-bus/*
 
 functions:
   createAppointment:
